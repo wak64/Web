@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sinkron Lirik — Ours To Keep (Template)</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;background:#0b1020;color:#e6eef8;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px}
+  .player { width:min(1000px,98%); background:linear-gradient(180deg,#071028 0%, #0d1728 100%); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.6); overflow:hidden; }
+  .top { padding:18px; display:flex; gap:12px; align-items:center; }
+  .cover { width:120px;height:120px;background:linear-gradient(135deg,#234 0%,#345 100%);border-radius:8px;flex:0 0 120px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff; }
+  .meta { flex:1; }
+  h1{margin:0;font-size:20px}
+  p.sub{margin:6px 0 0;color:#9fb0c9;font-size:13px}
+  audio{width:100%;margin-top:10px}
+  .lyrics-wrap{ max-height:480px; overflow:auto; padding:18px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-top:1px solid rgba(255,255,255,0.03) }
+  .line{ padding:10px 12px; border-radius:8px; margin:6px 0; transition: all .18s ease; color:#cfe8ff; font-size:16px }
+  .line.active{ background: linear-gradient(90deg, rgba(255,160,60,0.14), rgba(255,90,50,0.06)); box-shadow: 0 6px 20px rgba(255,140,40,0.06); transform: translateY(-2px); color:#fff; font-weight:600; }
+  .controls{ padding:12px 18px; display:flex; gap:8px; align-items:center; background:linear-gradient(180deg, rgba(0,0,0,0.03), rgba(255,255,255,0.01)); border-top:1px solid rgba(255,255,255,0.02) }
+  .jump-btn{ background:#1b8cff; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer }
+  .small{ font-size:13px;color:#9fb0c9 }
+  input[type=file]{ display:none }
+  .file-row{ display:flex; gap:8px; align-items:center }
+  .btn{ background:transparent;border:1px solid rgba(255,255,255,0.06); color: #dcedff; padding:8px 10px; border-radius:8px; cursor:pointer }
+</style>
+</head>
+<body>
+
+<div class="player" role="application" aria-label="Lyrics sync player">
+  <div class="top">
+    <div class="cover">Cover</div>
+    <div class="meta">
+      <h1>Ours To Keep — (Sinkron Template)</h1>
+      <p class="sub">Tempel lirikmu sendiri pada array <code>cues</code> atau load WebVTT/LRC. File audio: <span id="audioName" class="small">AUDIO_URL_OR_FILENAME</span></p>
+      <audio id="audio" controls preload="metadata">
+        <!-- Ganti src dengan file lagu lokal atau URL -->
+        <source src="AUDIO_URL_OR_FILENAME" type="audio/mpeg">
+        Browsermu tidak mendukung audio.
+      </audio>
+      <div style="margin-top:6px" class="file-row">
+        <label class="btn">
+          Load .vtt/.lrc
+          <input id="fileLoader" type="file" accept=".vtt,.lrc,text/plain" />
+        </label>
+        <button id="autoScrollToggle" class="btn">Auto-scroll: ON</button>
+        <button id="downloadVtt" class="btn">Download VTT (dari cues)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lyrics-wrap" id="lyricsWrap" tabindex="0" aria-live="polite">
+    <!-- baris lirik akan diinject di sini -->
+  </div>
+
+  <div class="controls">
+    <div style="flex:1">
+      <span class="small">Klik baris untuk lompat. Gunakan tombol <strong>Auto-scroll</strong>.</span>
+    </div>
+    <div>
+      <button id="prevBtn" class="jump-btn">Prev</button>
+      <button id="nextBtn" class="jump-btn">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  INSTRUKSI:
+  - Saya tidak boleh menuliskan lirik berhak cipta di sini.
+  - Isi sendiri array `cues` dengan objek: { start: seconds, end: seconds, text: "baris lirik" }
+  - Contoh: { start: 12.5, end: 15.8, text: "This is the lyric line" }
+  - Atau klik "Load .vtt/.lrc" untuk memuat file subtitle.
+*/
+
+const audio = document.getElementById('audio');
+const lyricsWrap = document.getElementById('lyricsWrap');
+const audioNameSpan = document.getElementById('audioName');
+const fileLoader = document.getElementById('fileLoader');
+const autoScrollToggle = document.getElementById('autoScrollToggle');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const downloadVtt = document.getElementById('downloadVtt');
+
+let autoScroll = true;
+let currentIndex = -1;
+
+// ======= SAMPLE PLACEHOLDER cues =======
+// Ganti array ini dengan lirik + timestampmu sendiri.
+// (Tidak berisi lirik asli — hanya contoh format)
+let cues = [
+  { start: 0.0, end: 6.5, text: "Intro / placeholder line 1" },
+  { start: 6.6, end: 12.5, text: "Placeholder line 2 (verse start)" },
+  { start: 12.6, end: 18.0, text: "Placeholder line 3" },
+  { start: 18.1, end: 24.5, text: "Placeholder line 4" },
+  // tambahkan sebanyak perlu...
+];
+
+// render awal
+function renderLyrics() {
+  lyricsWrap.innerHTML = '';
+  cues.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'line';
+    div.dataset.index = i;
+    div.dataset.start = c.start;
+    div.dataset.end = c.end;
+    div.innerText = formatTime(c.start) + "  —  " + c.text;
+    div.addEventListener('click', ()=> {
+      audio.currentTime = c.start + 0.01;
+      audio.play();
+    });
+    lyricsWrap.appendChild(div);
+  });
+}
+renderLyrics();
+
+function formatTime(s) {
+  const mm = String(Math.floor(s/60)).padStart(2,'0');
+  const ss = String(Math.floor(s%60)).padStart(2,'0');
+  const ms = String(Math.floor((s%1)*1000)).padStart(3,'0');
+  return `${mm}:${ss}.${ms}`;
+}
+
+// highlight loop
+function updateHighlight() {
+  const t = audio.currentTime;
+  let found = -1;
+  for (let i=0;i<cues.length;i++){
+    if (t >= cues[i].start && t <= (cues[i].end || cues[i].start + 5)) {
+      found = i; break;
+    }
+  }
+  if (found !== currentIndex) {
+    // remove old
+    if (currentIndex >=0) {
+      const old = lyricsWrap.querySelector(`.line[data-index="${currentIndex}"]`);
+      if (old) old.classList.remove('active');
+    }
+    currentIndex = found;
+    if (currentIndex >= 0) {
+      const cur = lyricsWrap.querySelector(`.line[data-index="${currentIndex}"]`);
+      if (cur) {
+        cur.classList.add('active');
+        if (autoScroll) cur.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+    }
+  }
+}
+
+// events
+audio.addEventListener('timeupdate', updateHighlight);
+
+// auto-scroll toggle
+autoScrollToggle.addEventListener('click', ()=>{
+  autoScroll = !autoScroll;
+  autoScrollToggle.textContent = `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+});
+
+// prev/next buttons
+prevBtn.addEventListener('click', ()=>{
+  if (currentIndex <=0) { audio.currentTime = 0; return; }
+  const prevIndex = Math.max(0, currentIndex - 1);
+  audio.currentTime = cues[prevIndex].start + 0.01;
+});
+nextBtn.addEventListener('click', ()=>{
+  if (currentIndex < 0) { audio.currentTime = 0; return; }
+  const nextIndex = Math.min(cues.length-1, currentIndex + 1);
+  audio.currentTime = cues[nextIndex].start + 0.01;
+});
+
+// file loader: support simple WebVTT or LRC
+fileLoader.addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0];
+  if (!f) return;
+  audioNameSpan.textContent = f.name;
+  const txt = await f.text();
+  parseSubtitleFile(txt, f.name);
+});
+
+// Very simple WebVTT/LRC parser
+function parseSubtitleFile(text, filename) {
+  const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const parsed = [];
+  if (filename.toLowerCase().endsWith('.vtt') || lines[0].toLowerCase().startsWith('webvtt')) {
+    // parse VTT: lines with "mm:ss.mmm --> mm:ss.mmm" then text lines
+    for (let i=0;i<lines.length;i++){
+      if (lines[i].includes('-->')) {
+        const parts = lines[i].split('-->');
+        const start = parseVttTime(parts[0].trim());
+        const end = parseVttTime(parts[1].trim());
+        let textLine = '';
+        // next line(s) are text until blank or next timecode
+        let j=i+1;
+        while (j<lines.length && !lines[j].includes('-->')) {
+          if (lines[j] && !lines[j].match(/^\d+$/)) textLine += (textLine ? '\n' : '') + lines[j];
+          j++;
+        }
+        parsed.push({start, end, text: textLine});
+      }
+    }
+  } else {
+    // try LRC: [mm:ss.xx] text
+    for (const ln of lines) {
+      const match = ln.match(/\[(\d+:\d+(?:[.:]\d+)?)\](.*)/);
+      if (match) {
+        const start = parseLrcTime(match[1]);
+        const textLine = match[2].trim();
+        parsed.push({start, end: start + 5, text: textLine});
+      }
+    }
+  }
+
+  if (parsed.length) {
+    cues = parsed;
+    renderLyrics();
+  } else {
+    alert('Gagal parse file. Pastikan file VTT atau LRC valid.');
+  }
+}
+
+function parseVttTime(s) {
+  // formats like hh:mm:ss.mmm or mm:ss.mmm
+  const parts = s.split(':').map(p=>p.trim());
+  let seconds = 0;
+  if (parts.length === 3) {
+    seconds = parseInt(parts[0])*3600 + parseInt(parts[1])*60 + parseFloat(parts[2]);
+  } else if (parts.length === 2) {
+    seconds = parseInt(parts[0])*60 + parseFloat(parts[1]);
+  } else seconds = parseFloat(s);
+  return seconds;
+}
+function parseLrcTime(s) {
+  // mm:ss.xx or mm:ss:xx
+  return parseVttTime(s.replace(':',':'));
+}
+
+// download VTT from current cues (handy to export)
+downloadVtt.addEventListener('click', ()=>{
+  let vtt = 'WEBVTT\n\n';
+  cues.forEach((c, i)=>{
+    const start = secsToVtt(c.start);
+    const end = secsToVtt(c.end || (c.start + 5));
+    vtt += `${i+1}\n${start} --> ${end}\n${c.text}\n\n`;
+  });
+  const blob = new Blob([vtt], {type:'text/vtt'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'exported_cues.vtt';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+});
+
+function secsToVtt(s) {
+  const hh = String(Math.floor(s/3600)).padStart(2,'0');
+  const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const ss = String(Math.floor(s%60)).padStart(2,'0');
+  const ms = String(Math.floor((s%1)*1000)).padStart(3,'0');
+  return `${hh}:${mm}:${ss}.${ms}`;
+}
+
+/* OPTIONAL: If you want to programmatically set cues from a pasted raw lyric,
+   the UI could include a textarea where each line begins with a timestamp.
+   For brevity, that is not included here. */
+
+// initial autofocus
+lyricsWrap.addEventListener('keydown', (e)=>{
+  if (e.key === ' '){ e.preventDefault(); audio.paused ? audio.play() : audio.pause(); }
+});
+</script>
+
+</body>
+</html>
